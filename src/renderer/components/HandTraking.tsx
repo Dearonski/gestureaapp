@@ -59,8 +59,6 @@ export const HandTraking = () => {
         }
     };
 
-    let lastVideoTime = -1;
-
     const predictWebcam = () => {
         if (
             canvasRef.current &&
@@ -74,23 +72,14 @@ export const HandTraking = () => {
             const canvasCtx = canvasRef.current.getContext(
                 "2d"
             ) as CanvasRenderingContext2D;
-            let results;
 
             const startTimeMs = performance.now();
-            if (lastVideoTime !== startTimeMs) {
-                lastVideoTime = videoRef.current.currentTime;
-                results = handLandmarker.detectForVideo(
-                    videoRef.current,
-                    startTimeMs
-                );
-            }
-            canvasCtx.save();
-            canvasCtx.clearRect(
-                0,
-                0,
-                canvasRef.current.width,
-                canvasRef.current.height
+            const results = handLandmarker.detectForVideo(
+                videoRef.current,
+                startTimeMs
             );
+
+            canvasCtx.save();
 
             if (results && results.landmarks) {
                 results.landmarks.forEach((landmarks) => {
@@ -105,7 +94,6 @@ export const HandTraking = () => {
                     });
                 });
             }
-            canvasCtx.restore();
 
             requestRef.current = requestAnimationFrame(predictWebcam);
         }
