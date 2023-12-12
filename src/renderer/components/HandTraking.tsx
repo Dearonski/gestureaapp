@@ -1,122 +1,122 @@
 import { useEffect, useRef, useState } from "react";
-import { HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
-import { HAND_CONNECTIONS } from "@mediapipe/hands";
+import { Button } from "./Button/Button";
+import { AnimatePresence, motion } from "framer-motion";
+import { useHandLandMarker } from "../hooks/useHandLandMarker";
+import { useTranslation } from "react-i18next";
+import { useRecognize } from "../hooks/useRecognize";
+import { useExecuteGesture } from "../hooks/useExecuteGesture";
+import { LandMarksMethods } from "../utils/Gestures";
 
 export const HandTraking = () => {
-    const [handLandmarker, sethandLandmarker] = useState<HandLandmarker | null>(
-        null
-    );
     const [webcamRunning, setWebcamRunning] = useState<boolean>(false);
-
+    const { t } = useTranslation();
     const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const requestRef = useRef<number>(0);
+    const videoCanvasRef = useRef<HTMLCanvasElement>(null);
+    const drawingCanvasRef = useRef<HTMLCanvasElement>(null);
+    const { enableCam, predictWebcam, results, drawingCanvasCtx } =
+        useHandLandMarker(
+            webcamRunning,
+            setWebcamRunning,
+            videoRef,
+            videoCanvasRef,
+            drawingCanvasRef
+        );
+    const { executeGesture } = useExecuteGesture();
+    const { recognizeGesture, recognizedGesture } = useRecognize();
+    const landMarks = useRef<LandMarksMethods>(null);
 
     useEffect(() => {
-        const createHandLandmarker = async () => {
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+        if (results) {
+            landMarks.current = new LandMarksMethods(
+                results,
+                videoRef.current.videoWidth,
+                videoRef.current.videoHeight
             );
-            sethandLandmarker(
-                await HandLandmarker.createFromOptions(vision, {
-                    baseOptions: {
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-                    },
-                    runningMode: "VIDEO",
-                })
-            );
-        };
-        createHandLandmarker();
-    }, []);
-
-    const enableCam = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-        });
-
-        if (videoRef.current && canvasRef.current) {
-            if (webcamRunning === true) {
-                cancelAnimationFrame(requestRef.current);
-                const tracks = stream.getTracks();
-
-                tracks.forEach((track) => {
-                    track.stop();
-                });
-                const canvasCtx = canvasRef.current.getContext(
-                    "2d"
-                ) as CanvasRenderingContext2D;
-                canvasCtx.clearRect(
-                    0,
-                    0,
-                    canvasRef.current.width,
-                    canvasRef.current.height
-                );
-            }
-            videoRef.current.srcObject = webcamRunning ? null : stream;
-
-            setWebcamRunning(!webcamRunning);
+            recognizeGesture(landMarks.current);
         }
-    };
+    }, [results]);
 
-    const predictWebcam = () => {
-        if (
-            canvasRef.current &&
-            videoRef.current &&
-            handLandmarker &&
-            webcamRunning
-        ) {
-            canvasRef.current.width = videoRef.current.videoWidth;
-            canvasRef.current.height = videoRef.current.videoHeight;
-
-            const canvasCtx = canvasRef.current.getContext(
-                "2d"
-            ) as CanvasRenderingContext2D;
-
-            const startTimeMs = performance.now();
-            const results = handLandmarker.detectForVideo(
-                videoRef.current,
-                startTimeMs
+    useEffect(() => {
+        console.log(recognizedGesture);
+        if (results && results.landmarks[0]) {
+            executeGesture(
+                recognizedGesture,
+                landMarks.current,
+                drawingCanvasCtx.current
             );
-
-            canvasCtx.save();
-
-            if (results && results.landmarks) {
-                results.landmarks.forEach((landmarks) => {
-                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-                        color: "#FFFFFF",
-                        lineWidth: 5,
-                    });
-                    drawLandmarks(canvasCtx, landmarks, {
-                        color: "",
-                        lineWidth: 1,
-                        radius: 4,
-                    });
-                });
-            }
-
-            requestRef.current = requestAnimationFrame(predictWebcam);
         }
-    };
+    });
 
     return (
         <div>
-            <button onClick={enableCam}>
-                {webcamRunning ? "Выключить камеру" : "Включить камеру"}
-            </button>
-            <video
-                autoPlay
-                playsInline
-                ref={videoRef}
-                onLoadedData={predictWebcam}
-                className="absolute"
-                style={{ transform: "rotateY(180deg)" }}
-            />
-            <canvas
-                ref={canvasRef}
-                className="absolute z-10 pointer-events-none"
-                style={{ transform: "rotateY(180deg)" }}
-            />
+            <div className="relative h-[calc(100vh-132px)] w-full mb-3 overflow-hidden rounded-xl flex items-center justify-center">
+                <AnimatePresence>
+                    {!webcamRunning && (
+                        <motion.div
+                            className="w-full h-full absolute z-20"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.7 }}
+                        >
+                            <motion.div
+                                className="bg-gradient-to-tr from-fuchsia-600 via-sky-600 to-red-600 w-full h-full bg-size-400 flex items-center justify-center"
+                                animate={{
+                                    backgroundPositionX: ["0%", "100%", "0%"],
+                                    backgroundPositionY: ["50%", "50%", "50%"],
+                                }}
+                                transition={{
+                                    duration: 20,
+                                    ease: "easeInOut",
+                                    repeat: Infinity,
+                                }}
+                            ></motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <video
+                    autoPlay
+                    ref={videoRef}
+                    onLoadedData={predictWebcam}
+                    className="absolute h-full w-full object-fill blur-[256px] rotate-y-180"
+                />
+                <canvas
+                    ref={videoCanvasRef}
+                    className="pointer-events-none h-full max-w-full w-auto object-contain absolute z-10"
+                />
+                <canvas
+                    ref={drawingCanvasRef}
+                    className="pointer-events-none h-full max-w-full w-auto object-contain absolute z-20"
+                />
+            </div>
+            <Button
+                onClick={enableCam}
+                className="w-full font-medium text-lg grid grid-cols-[auto_40px_170px_auto] items-center gap-x-4"
+            >
+                <motion.div
+                    animate={
+                        webcamRunning
+                            ? { rotate: -90, scale: 3.5 }
+                            : { rotate: -120, scale: 3.5 }
+                    }
+                    transition={{ duration: 0.7 }}
+                    className={`w-9 h-9 rounded-full col-start-2`}
+                >
+                    <div
+                        className={`h-9 w-9 bg-white absolute transition-[clip-path] duration-700 ${
+                            webcamRunning ? "pause_1" : "play_1"
+                        }`}
+                    ></div>
+                    <div
+                        className={`h-9 w-9 bg-white absolute transition-[clip-path] duration-700 ${
+                            webcamRunning ? "pause_2" : "play_2"
+                        }`}
+                    ></div>
+                </motion.div>
+                <span className="text-left">
+                    {webcamRunning ? t("Turn off camera") : t("Turn on camera")}
+                </span>
+            </Button>
         </div>
     );
 };

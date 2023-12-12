@@ -4,6 +4,7 @@
         "allowJs": true,
         "module": "commonjs",
         "skipLibCheck": true,
+        "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
         "noImplicitAny": true,
         "sourceMap": true,
@@ -16,5 +17,5 @@
             "*": ["node_modules/*"]
         }
     },
-    "include": ["src/**/*", "index.d.ts"]
+    "include": ["src/**/*"]
 }
